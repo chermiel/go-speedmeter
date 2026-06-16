@@ -1,0 +1,12 @@
+# Build output
+/speedmeter
+
+# Go
+*.exe
+*.test
+*.out
+vendor/
+
+# OS
+.DS_Store
+Thumbs.db
