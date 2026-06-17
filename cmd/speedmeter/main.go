@@ -35,9 +35,19 @@ func main() {
 	}
 
 	startTime := time.Now()
-	var tickCount int
+	firstDraw := true
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
+
+	// Draw initial TUI skeleton immediately (no data yet, just layout)
+	if useColor {
+		d := render.Data{
+			Iface:   iface,
+			Runtime: 0,
+		}
+		render.TUI(d, true)
+		firstDraw = false
+	}
 
 	for {
 		select {
@@ -63,11 +73,11 @@ func main() {
 			}
 
 			if useColor {
-				render.TUI(d, tickCount == 0)
+				render.TUI(d, firstDraw)
+				firstDraw = false
 			} else {
 				render.Plain(d)
 			}
-			tickCount++
 		}
 	}
 }

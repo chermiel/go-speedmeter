@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"speedmeter/internal/format"
@@ -10,8 +11,12 @@ import (
 const (
 	colorGreen  = "\033[32m"
 	colorYellow = "\033[33m"
+	colorCyan   = "\033[36m"
 	colorBold   = "\033[1m"
+	colorDim    = "\033[2m"
 	colorReset  = "\033[0m"
+	barWidth    = 40
+	innerWidth  = 50 // lebar isi, di luar border kiri-kanan
 )
 
 type Data struct {
@@ -25,62 +30,71 @@ type Data struct {
 	Runtime time.Duration
 }
 
+// ratio aman dari div-by-zero, hasil 0..1
+func ratio(v, peak float64) float64 {
+	if peak <= 0 {
+		return 0
+	}
+	if v > peak {
+		return 1
+	}
+	return v / peak
+}
+
+// padR rune-aware, aman buat karakter Unicode
+func padR(s string, n int) string {
+	r := []rune(s)
+	if len(r) >= n {
+		return string(r[:n])
+	}
+	return s + strings.Repeat(" ", n-len(r))
+}
+
+func row(s string) string { return "│ " + padR(s, innerWidth) + " │" }
+func divTop() string      { return "┌" + strings.Repeat("─", innerWidth+2) + "┐" }
+func divMid() string      { return "├" + strings.Repeat("─", innerWidth+2) + "┤" }
+func divBot() string      { return "└" + strings.Repeat("─", innerWidth+2) + "┘" }
+
 func TUI(d Data, firstDraw bool) {
-	if firstDraw {
-		fmt.Print("\033[H\033[2J")
-		fmt.Print(colorBold)
-		fmt.Println("╭──────────────────────────────────────────╮")
-		fmt.Printf("│    SpeedMeter  •  %-22s│\n", d.Iface)
-		fmt.Println("├──────────────────────────────────────────┤")
-		fmt.Println("│  ⬇ DOWNLOAD                               │")
-		fmt.Println("│  ▏                                        │")
-		fmt.Println("│  ⬆ UPLOAD                                 │")
-		fmt.Println("│  ▏                                        │")
-		fmt.Println("├──────────────────────────────────────────┤")
-		fmt.Println("│  Total  RX: --         │  TX: --          │")
-		fmt.Println("│  Peak   DL: --         │  UL: --          │")
-		fmt.Println("│  Runtime:  --                              │")
-		fmt.Println("├──────────────────────────────────────────┤")
-		fmt.Println("│  [Ctrl+C] exit                             │")
-		fmt.Println("╰──────────────────────────────────────────╯")
-		fmt.Print(colorReset)
-		fmt.Print("\033[?25l")
+	pctRx := ratio(d.RxSpeed, d.PeakRx)
+	pctTx := ratio(d.TxSpeed, d.PeakTx)
+
+	lines := []string{
+		colorBold + colorCyan + divTop(),
+		row("SpeedMeter   " + d.Iface),
+		divMid() + colorReset,
+		colorGreen + row(fmt.Sprintf("DL  %-14s  %s", format.Speed(d.RxSpeed), format.Percent(pctRx))),
+		colorGreen + row("    " + format.BarFractional(pctRx, barWidth)),
+		colorYellow + row(fmt.Sprintf("UL  %-14s  %s", format.Speed(d.TxSpeed), format.Percent(pctTx))),
+		colorYellow + row("    " + format.BarFractional(pctTx, barWidth)),
+		colorCyan + divMid() + colorReset,
+		row(fmt.Sprintf("RX %-18s TX %s", format.Bytes(d.TotalRx), format.Bytes(d.TotalTx))),
+		row(fmt.Sprintf("Peak DL %-11s Peak UL %s", format.Speed(d.PeakRx), format.Speed(d.PeakTx))),
+		row(fmt.Sprintf("Uptime %s", d.Runtime.Round(time.Second))),
+		colorCyan + divBot(),
+		colorDim + "  ctrl+c to exit" + colorReset,
 	}
 
-	pctRx := d.RxSpeed / (d.PeakRx + 1)
-	pctTx := d.TxSpeed / (d.PeakTx + 1)
-
-	// Row 4 (1-based): DL icon line → write speed + pct
-	fmt.Printf("\033[4;4H%s%-14s %s%s", colorGreen, format.Speed(d.RxSpeed), format.Percent(pctRx), colorReset)
-	// Row 5: DL bar
-	fmt.Printf("\033[5;5H%s%s%s", colorGreen, format.BarFractional(pctRx, 38), colorReset)
-
-	// Row 6: UL icon line → write speed + pct
-	fmt.Printf("\033[6;4H%s%-14s %s%s", colorYellow, format.Speed(d.TxSpeed), format.Percent(pctTx), colorReset)
-	// Row 7: UL bar
-	fmt.Printf("\033[7;5H%s%s%s", colorYellow, format.BarFractional(pctTx, 38), colorReset)
-
-	// Row 9: Total RX/TX
-	fmt.Printf("\033[9;14H%-12s │  TX: %-10s", format.Bytes(d.TotalRx), format.Bytes(d.TotalTx))
-	// Row 10: Peak DL/UL
-	fmt.Printf("\033[10;15H%-12s │  UL: %-10s", format.Speed(d.PeakRx), format.Speed(d.PeakTx))
-	// Row 11: Runtime
-	fmt.Printf("\033[11;13H%-28s", d.Runtime)
+	if firstDraw {
+		fmt.Print("\033[H\033[2J\033[?25l")
+	} else {
+		fmt.Printf("\033[%dA", len(lines)) // naik sesuai jumlah baris, no more magic number
+	}
+	fmt.Println(strings.Join(lines, "\n"))
 }
 
 func Plain(d Data) {
 	fmt.Print("\033[H\033[2J")
-
-	fmt.Println("==============================================")
-	fmt.Printf("=  SpeedMeter — %-22s =\n", d.Iface)
-	fmt.Println("==============================================")
-	fmt.Printf("  DOWNLOAD: %s\n", format.Speed(d.RxSpeed))
-	fmt.Printf("  UPLOAD:   %s\n", format.Speed(d.TxSpeed))
-	fmt.Println("----------------------------------------------")
-	fmt.Printf("  Total RX: %s\n", format.Bytes(d.TotalRx))
-	fmt.Printf("  Total TX: %s\n", format.Bytes(d.TotalTx))
-	fmt.Printf("  Peak DL:  %s\n", format.Speed(d.PeakRx))
-	fmt.Printf("  Peak UL:  %s\n", format.Speed(d.PeakTx))
-	fmt.Printf("  Runtime:   %s\n", d.Runtime)
-	fmt.Println("==============================================")
+	fmt.Println(divTop())
+	fmt.Println(row("SpeedMeter   " + d.Iface))
+	fmt.Println(divMid())
+	fmt.Printf("  DOWNLOAD : %s\n", format.Speed(d.RxSpeed))
+	fmt.Printf("  UPLOAD   : %s\n", format.Speed(d.TxSpeed))
+	fmt.Println(divMid())
+	fmt.Printf("  Total RX : %s\n", format.Bytes(d.TotalRx))
+	fmt.Printf("  Total TX : %s\n", format.Bytes(d.TotalTx))
+	fmt.Printf("  Peak DL  : %s\n", format.Speed(d.PeakRx))
+	fmt.Printf("  Peak UL  : %s\n", format.Speed(d.PeakTx))
+	fmt.Printf("  Runtime  : %s\n", d.Runtime.Round(time.Second))
+	fmt.Println(divBot())
 }

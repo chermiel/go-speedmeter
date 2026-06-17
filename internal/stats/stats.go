@@ -35,7 +35,7 @@ func ReadNetStats(iface string) (NetStat, error) {
 	lines := strings.Split(string(data), "\n")
 	for _, line := range lines[2:] {
 		fields := strings.Fields(line)
-		if len(fields) == 0 {
+		if len(fields) < 10 {
 			continue
 		}
 		name := strings.TrimRight(fields[0], ":")
