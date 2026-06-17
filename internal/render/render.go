@@ -41,28 +41,6 @@ func ratio(v, peak float64) float64 {
 	return v / peak
 }
 
-// bar bikin progress bar mulus pakai partial block
-func bar(pct float64, w int) string {
-	if pct < 0 {
-		pct = 0
-	}
-	if pct > 1 {
-		pct = 1
-	}
-	blocks := []rune{' ', '▏', '▎', '▍', '▌', '▋', '▊', '▉', '█'}
-	total := pct * float64(w)
-	full := int(total)
-
-	var b strings.Builder
-	b.WriteString(strings.Repeat("█", full))
-	if full < w {
-		frac := total - float64(full)
-		b.WriteRune(blocks[int(frac*8)])
-		b.WriteString(strings.Repeat("░", w-full-1))
-	}
-	return b.String()
-}
-
 // padR rune-aware, aman buat karakter Unicode
 func padR(s string, n int) string {
 	r := []rune(s)
@@ -86,9 +64,9 @@ func TUI(d Data, firstDraw bool) {
 		row("SpeedMeter   " + d.Iface),
 		divMid() + colorReset,
 		colorGreen + row(fmt.Sprintf("DL  %-14s  %s", format.Speed(d.RxSpeed), format.Percent(pctRx))),
-		colorGreen + row("    "+bar(pctRx, barWidth)),
+		colorGreen + row("    " + format.BarFractional(pctRx, barWidth)),
 		colorYellow + row(fmt.Sprintf("UL  %-14s  %s", format.Speed(d.TxSpeed), format.Percent(pctTx))),
-		colorYellow + row("    "+bar(pctTx, barWidth)),
+		colorYellow + row("    " + format.BarFractional(pctTx, barWidth)),
 		colorCyan + divMid() + colorReset,
 		row(fmt.Sprintf("RX %-18s TX %s", format.Bytes(d.TotalRx), format.Bytes(d.TotalTx))),
 		row(fmt.Sprintf("Peak DL %-11s Peak UL %s", format.Speed(d.PeakRx), format.Speed(d.PeakTx))),
