@@ -10,3 +10,6 @@ vendor/
 # OS
 .DS_Store
 Thumbs.db
+
+# JCE context index runtime state
+.opencode-jce/context/
